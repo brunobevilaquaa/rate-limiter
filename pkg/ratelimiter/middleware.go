@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -33,36 +34,38 @@ func NewUserRateLimiter(handler http.Handler, redisClient *redis.Client, config 
 	}
 }
 
-func (rh *UserRateLimiter) Middleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cacheRepository := NewCacheRepository(rh.redisClient)
+func (url *UserRateLimiter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	cacheRepository := NewCacheRepository(url.redisClient)
 
-		config, err := rh.getConfigFromJWTToken(r)
-		if err != nil {
-			config = &rh.config
-		}
+	config, err := url.getConfigFromJWTToken(r)
+	if err != nil {
+		config = &url.config
+	}
 
-		rl := NewLimiterService(cacheRepository, *config)
-		key := rh.getUserKey(r)
+	rl := NewLimiterService(cacheRepository, *config)
+	key := url.getUserKey(r)
 
-		if allowed, err := rl.Allowed(key); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		} else if !allowed {
-			http.Error(w, "you have reached the maximum number of requests or actions allowed within a certain time frame", http.StatusTooManyRequests)
-		} else {
-			next.ServeHTTP(w, r)
-		}
-	})
+	if allowed, err := rl.Allowed(key); err != nil {
+		log.Println("error checking if allowed:", err)
+
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	} else if !allowed {
+		http.Error(w, "you have reached the maximum number of requests or actions allowed within a certain time frame", http.StatusTooManyRequests)
+		return
+	}
+
+	url.handler.ServeHTTP(w, r)
 }
 
-func (rh *UserRateLimiter) getConfigFromJWTToken(r *http.Request) (*Config, error) {
+func (url *UserRateLimiter) getConfigFromJWTToken(r *http.Request) (*Config, error) {
 	token := r.Header.Get("API_KEY")
 	if token == "" {
 		return nil, errors.New("missing API_KEY header")
 	}
 
 	data, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
-		return []byte(rh.jwtSecret), nil
+		return []byte(url.jwtSecret), nil
 	})
 
 	if err != nil {
@@ -78,12 +81,12 @@ func (rh *UserRateLimiter) getConfigFromJWTToken(r *http.Request) (*Config, erro
 		return nil, errors.New("error parsing JWT claims")
 	}
 
-	timeWindow, err := time.ParseDuration(claims["timeWindow"].(string))
+	timeWindow, err := time.ParseDuration(claims["rateLimiterTimeWindow"].(string))
 	if err != nil {
 		return nil, errors.New("error parsing timeWindow")
 	}
 
-	creditsPerTimeWindow := int(claims["creditsPerTimeWindow"].(float64))
+	creditsPerTimeWindow := int(claims["rateLimiterCreditsPerTimeWindow"].(float64))
 
 	return &Config{
 		TimeWindow:           timeWindow,
@@ -91,7 +94,7 @@ func (rh *UserRateLimiter) getConfigFromJWTToken(r *http.Request) (*Config, erro
 	}, nil
 }
 
-func getClientIP(r *http.Request) string {
+func (url *UserRateLimiter) getClientIP(r *http.Request) string {
 	ip := r.RemoteAddr
 
 	ip = strings.Split(ip, ":")[0]
@@ -110,10 +113,10 @@ func getClientIP(r *http.Request) string {
 	return ip
 }
 
-func (rh *UserRateLimiter) getUserKey(r *http.Request) string {
+func (url *UserRateLimiter) getUserKey(r *http.Request) string {
 	key := r.Header.Get("API_KEY")
 	if key == "" {
-		key = getClientIP(r)
+		key = url.getClientIP(r)
 	}
 
 	hash := sha256.New()

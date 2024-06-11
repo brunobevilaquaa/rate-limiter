@@ -36,7 +36,9 @@ func (cr *CacheRepository) Set(ctx context.Context, key string, value *UserDetai
 func (cr *CacheRepository) Get(ctx context.Context, key string) (*UserDetail, error) {
 	val, err := cr.cache.Get(ctx, key).Result()
 
-	if err != nil {
+	if errors.Is(err, redis.Nil) {
+		return nil, nil
+	} else if err != nil {
 		return nil, errors.New("error getting value from cache")
 	}
 

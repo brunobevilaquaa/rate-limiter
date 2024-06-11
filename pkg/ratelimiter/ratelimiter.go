@@ -59,7 +59,7 @@ func (ls *LimiterService) Allowed(key string) (bool, error) {
 		userDetail.RemainingCredits--
 	} else {
 		userDetail.FirstRequestSentAt = time.Now()
-		userDetail.RemainingCredits = ls.config.CreditsPerTimeWindow
+		userDetail.RemainingCredits = ls.config.CreditsPerTimeWindow - 1
 	}
 
 	if err := ls.cacheRepository.Set(ctx, key, userDetail); err != nil {
