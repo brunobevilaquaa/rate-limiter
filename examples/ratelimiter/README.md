@@ -57,7 +57,7 @@ To test the rate limiter based on IP address, make repeated requests to the serv
 curl -X GET http://localhost:8080/hello
 ```
 
-If the number of requests exceeds the IP rate limit (default is 10 requests each 10 second), you will receive an HTTP 429 status code with the message:
+If the number of requests exceeds the IP rate limit (default is 5 requests each 10 second), you will receive an HTTP 429 status code with the message:
 
 ```
 you have reached the maximum number of requests or actions allowed within a certain time frame
