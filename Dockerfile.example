@@ -1,0 +1,17 @@
+FROM golang:1.22 as Build
+
+WORKDIR /go/src/rate-limiter
+
+RUN apt update
+
+COPY . .
+
+RUN go get -d -v ./... && \
+    go mod tidy && \
+    CGO_ENABLED=0 GOOS=linux go build -o /go/bin/rate-limiter ./examples/ratelimiter/webserver.go
+
+FROM alpine:3.18
+
+COPY --from=Build /go/bin/rate-limiter /usr/local/bin/rate-limiter
+
+ENTRYPOINT ["/usr/local/bin/rate-limiter"]

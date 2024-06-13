@@ -1,0 +1,24 @@
+version: '3'
+
+services:
+  redis:
+    image: redis:alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+
+  rate-limiter:
+    image: brunobevilaquaa/rate-limiter:latest
+    build:
+      dockerfile: Dockerfile.example
+      context: .
+    container_name: rate-limiter
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redis
+    environment:
+      - REDIS_HOST_ADDR=redis:6379
+      - RATE_LIMITER_TIME_WINDOW=10s
+      - RATE_LIMITER_CREDITS_PER_TIME_WINDOW=5
+      - RATE_LIMITER_JWT_SECRET=secret

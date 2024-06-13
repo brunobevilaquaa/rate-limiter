@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/redis/go-redis/v9"
 )
 
 type MiddlewareConfig struct {
@@ -19,30 +18,28 @@ type MiddlewareConfig struct {
 }
 
 type UserRateLimiter struct {
-	handler     http.Handler
-	redisClient *redis.Client
-	config      Config
-	jwtSecret   string
+	handler   http.Handler
+	cache     Cache
+	config    Config
+	jwtSecret string
 }
 
-func NewUserRateLimiter(handler http.Handler, redisClient *redis.Client, config Config, jwtSecret string) *UserRateLimiter {
+func NewUserRateLimiter(handler http.Handler, cache Cache, config Config, jwtSecret string) *UserRateLimiter {
 	return &UserRateLimiter{
-		handler:     handler,
-		redisClient: redisClient,
-		config:      config,
-		jwtSecret:   jwtSecret,
+		handler:   handler,
+		cache:     cache,
+		config:    config,
+		jwtSecret: jwtSecret,
 	}
 }
 
 func (url *UserRateLimiter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	cacheRepository := NewCacheRepository(url.redisClient)
-
 	config, err := url.getConfigFromJWTToken(r)
 	if err != nil {
 		config = &url.config
 	}
 
-	rl := NewLimiterService(cacheRepository, *config)
+	rl := NewLimiterService(url.cache, *config)
 	key := url.getUserKey(r)
 
 	if allowed, err := rl.Allowed(key); err != nil {
