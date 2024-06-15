@@ -17,7 +17,18 @@ git clone https://github.com/brunobevilaquaa/rate-limiter.git
 cd rate-limiter
 ```
 
-### 2. Docker Compose
+### 2. Changing the Rate Limit
+
+You can change the rate limit by modifying the `docker-compose-example.yml` file. The following environment variables are available:
+
+```yml
+environment:
+  - RATE_LIMITER_CREDITS_PER_TOKEN=10
+  - RATE_LIMITER_CREDITS_PER_IP=5
+  - RATE_LIMITER_TIME_WINDOW=10s
+```
+
+### 3. Running the Project
 
 Run the following command in the root directory of the project:
 
@@ -25,7 +36,7 @@ Run the following command in the root directory of the project:
 docker-compose -f docker-compose-example.yml up -d
 ```
 
-This command will start a Redis instance and an Web Server as specified in the `docker-compose-example.yml` file.
+This command will start a Redis instance and a Web Server as specified in the `docker-compose-example.yml` file.
 
 ## Example Token
 
@@ -33,18 +44,6 @@ Use the following example token for testing the rate limiter functionality:
 
 ```
 eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwicmF0ZUxpbWl0ZXJUaW1lV2luZG93IjoiMTBzIiwicmF0ZUxpbWl0ZXJDcmVkaXRzUGVyVGltZVdpbmRvdyI6MTAsImlhdCI6MTUxNjIzOTAyMn0.2mMDJ4U1RyX1cjE362AjCY5v7LHVvcLERaP-EiKW1GI
-```
-
-This token is a valid JWT token with the following claims:
-
-```json
-{
-  "sub": "1234567890",
-  "name": "John Doe",
-  "rateLimiterTimeWindow": "10s",
-  "rateLimiterCreditsPerTimeWindow": 10,
-  "iat": 1516239022
-}
 ```
 
 ## Making Requests

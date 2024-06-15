@@ -21,20 +21,23 @@ func main() {
 	mux.HandleFunc("/hello", helloWorldHandler)
 
 	var timeWindow time.Duration
-	var creditsPerTimeWindow int
-	var jwtSecret string
+	var creditsPerToken int
+	var creditsPerIp int
 
 	timeWindow, err := time.ParseDuration(os.Getenv("RATE_LIMITER_TIME_WINDOW"))
 	if err != nil {
-		timeWindow = 10 * time.Second
+		panic(err)
 	}
 
-	creditsPerTimeWindow, err = strconv.Atoi(os.Getenv("RATE_LIMITER_CREDITS_PER_TIME_WINDOW"))
+	creditsPerToken, err = strconv.Atoi(os.Getenv("RATE_LIMITER_CREDITS_PER_TOKEN"))
 	if err != nil {
-		creditsPerTimeWindow = 10
+		panic(err)
 	}
 
-	jwtSecret = os.Getenv("RATE_LIMITER_JWT_SECRET")
+	creditsPerIp, err = strconv.Atoi(os.Getenv("RATE_LIMITER_CREDITS_PER_IP"))
+	if err != nil {
+		panic(err)
+	}
 
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     os.Getenv("REDIS_HOST_ADDR"),
@@ -44,14 +47,9 @@ func main() {
 
 	cache := ratelimiter.NewCacheRepository(rdb)
 
-	rlc := ratelimiter.Config{
-		TimeWindow:           timeWindow,
-		CreditsPerTimeWindow: creditsPerTimeWindow,
-	}
+	wrappedMux := ratelimiter.NewUserRateLimiter(mux, cache, creditsPerToken, creditsPerIp, timeWindow)
 
-	wrappedMux := ratelimiter.NewUserRateLimiter(mux, cache, rlc, jwtSecret)
-
-	log.Printf("Middleware config, TimeWindow: %s CreditsPerTimeWindow %d", timeWindow, creditsPerTimeWindow)
+	log.Printf("Middleware config, TimeWindow: %s CreditsPerToken %d CreditsPerToken %d", timeWindow, creditsPerToken, creditsPerIp)
 	log.Println("Server starting on :8080")
 
 	log.Fatal(http.ListenAndServe(":8080", wrappedMux))

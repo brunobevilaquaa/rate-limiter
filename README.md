@@ -22,14 +22,11 @@ rdb := redis.NewClient(&redis.Options{
 })
 
 cache := ratelimiter.NewCacheRepository(rdb)
+creditsPerToken := 10
+creditsPerIp := 5
+timeWindow := time.Second * 10
 
-rlc := ratelimiter.Config{
-	TimeWindow:           time.Second * 10,
-	CreditsPerTimeWindow: 10,
-}
-
-middleware := ratelimiter.NewUserRateLimiter(mux, cache, rlc, "secret")
-
+middleware := ratelimiter.NewUserRateLimiter(mux, cache, creditsPerToken, creditsPerIp, timeWindow)
 ```
 
 For more examples, see the [examples directory](examples/ratelimiter/).
@@ -52,20 +49,18 @@ ratelimiter.Config{
 }
 ```
 
-## Overriding Default Configuration Using JWT Token
+## Middleware configuration
 
-The rate limiter can be configured using an access token. The token must be passed in the header of the request with the key `API_KEY`. The token must be a valid JWT token with the following claims:
-```json
-{
-  "sub": "1234567890",
-  "name": "John Doe",
-  "rateLimiterTimeWindow": "10s",
-  "rateLimiterCreditsPerTimeWindow": 10,
-  "iat": 1516239022
+The middleware can be configured with the following parameters:
+
+```go
+ratelimiter.MiddlewareConfig{
+    TimeWindow:      time.Second * 10,
+    CreditsPerIp:    5,
+    CreditsPerToken: 10,
 }
-```
 
-where `TimeWindow` is the time window for the rate limiter and `CreditsPerTimeWindow` is the number of requests allowed in that time window. The token secret must be passed to middleware as a parameter.
+```
 
 ### Persistence Structure
 

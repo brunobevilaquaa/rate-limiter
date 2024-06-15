@@ -3,48 +3,42 @@ package ratelimiter
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
-	"log"
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/golang-jwt/jwt/v5"
 )
 
 type MiddlewareConfig struct {
-	JWTSecret string
-	Config
+	TimeWindow      time.Duration
+	CreditsPerIp    int
+	CreditsPerToken int
 }
 
 type UserRateLimiter struct {
-	handler   http.Handler
-	cache     Cache
-	config    Config
-	jwtSecret string
+	handler http.Handler
+	cache   Cache
+	config  MiddlewareConfig
 }
 
-func NewUserRateLimiter(handler http.Handler, cache Cache, config Config, jwtSecret string) *UserRateLimiter {
+func NewUserRateLimiter(handler http.Handler, cache Cache, creditsPerToken int, creditsPerIp int, timeWindow time.Duration) *UserRateLimiter {
 	return &UserRateLimiter{
-		handler:   handler,
-		cache:     cache,
-		config:    config,
-		jwtSecret: jwtSecret,
+		handler: handler,
+		cache:   cache,
+		config: MiddlewareConfig{
+			TimeWindow:      timeWindow,
+			CreditsPerIp:    creditsPerIp,
+			CreditsPerToken: creditsPerToken,
+		},
 	}
 }
 
 func (url *UserRateLimiter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	config, err := url.getConfigFromJWTToken(r)
-	if err != nil {
-		config = &url.config
-	}
+	config := url.getConfig(r)
 
-	rl := NewLimiterService(url.cache, *config)
+	rl := NewLimiterService(url.cache, config)
 	key := url.getUserKey(r)
 
 	if allowed, err := rl.Allowed(key); err != nil {
-		log.Println("error checking if allowed:", err)
-
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	} else if !allowed {
@@ -55,40 +49,18 @@ func (url *UserRateLimiter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	url.handler.ServeHTTP(w, r)
 }
 
-func (url *UserRateLimiter) getConfigFromJWTToken(r *http.Request) (*Config, error) {
-	token := r.Header.Get("API_KEY")
-	if token == "" {
-		return nil, errors.New("missing API_KEY header")
+func (url *UserRateLimiter) getConfig(r *http.Request) Config {
+	if r.Header.Get("API_KEY") != "" {
+		return Config{
+			TimeWindow:           url.config.TimeWindow,
+			CreditsPerTimeWindow: url.config.CreditsPerToken,
+		}
 	}
 
-	data, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
-		return []byte(url.jwtSecret), nil
-	})
-
-	if err != nil {
-		return nil, errors.New("error parsing JWT token")
+	return Config{
+		TimeWindow:           url.config.TimeWindow,
+		CreditsPerTimeWindow: url.config.CreditsPerIp,
 	}
-
-	if !data.Valid {
-		return nil, errors.New("invalid JWT token")
-	}
-
-	claims, ok := data.Claims.(jwt.MapClaims)
-	if !ok {
-		return nil, errors.New("error parsing JWT claims")
-	}
-
-	timeWindow, err := time.ParseDuration(claims["rateLimiterTimeWindow"].(string))
-	if err != nil {
-		return nil, errors.New("error parsing timeWindow")
-	}
-
-	creditsPerTimeWindow := int(claims["rateLimiterCreditsPerTimeWindow"].(float64))
-
-	return &Config{
-		TimeWindow:           timeWindow,
-		CreditsPerTimeWindow: creditsPerTimeWindow,
-	}, nil
 }
 
 func (url *UserRateLimiter) getClientIP(r *http.Request) string {
